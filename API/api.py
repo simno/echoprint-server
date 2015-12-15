@@ -1,22 +1,14 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-api.py
-
-Created by Brian Whitman on 2010-06-16.
-Copyright (c) 2010 The Echo Nest Corporation. All rights reserved.
-"""
-from __future__ import with_statement
+#!/usr/bin/python
 
 import web
-import fp
-import re
-
+import sys
+import os
 try:
     import json
 except ImportError:
     import simplejson as json
 
+import fp
 
 # Very simple web facing API for FP dist
 
@@ -28,48 +20,92 @@ urls = (
 
 
 class ingest:
+
     def POST(self):
-        params = web.input(track_id="default", fp_code="", artist=None, release=None, track=None, length=None, codever=None)
-        if params.track_id == "default":
-            track_id = fp.new_track_id()
-        else:
-            track_id = params.track_id
-        if params.length is None or params.codever is None:
-            return web.webapi.BadRequest()
-        
-        # First see if this is a compressed code
-        if re.match('[A-Za-z\/\+\_\-]', params.fp_code) is not None:
-           code_string = fp.decode_code_string(params.fp_code)
-           if code_string is None:
-               return json.dumps({"track_id":track_id, "ok":False, "error":"cannot decode code string %s" % params.fp_code})
-        else:
-            code_string = params.fp_code
-
-        data = {"track_id": track_id, 
-                "fp": code_string,
-                "length": params.length,
-                "codever": params.codever }
-        if params.artist: data["artist"] = params.artist
-        if params.release: data["release"] = params.release
-        if params.track: data["track"] = params.track
-        fp.ingest(data, do_commit=True, local=False)
-
+        data = web.data()
+        #print(data)
+        tracks = json.loads(data)
+        codes, bigeval = self.parse_json_dump(tracks)
+        #print("Codes est: '%s'" % codes)
+        fp.ingest(codes, do_commit=False)
         return json.dumps({"track_id":track_id, "status":"ok"})
+
+    def parse_json_dump(self, json_data):
+        codes = json_data
+
+        bigeval = {}
+        fullcodes = []
+        for c in codes:
+            if "code" not in c:
+                continue
+            code = c["code"]
+            m = c["metadata"]
+            if "track_id" in m:
+                trid = m["track_id"].encode("utf-8")
+            else:
+                trid = fp.new_track_id()
+            length = m["duration"]
+            version = m["version"]
+            artist = m.get("artist", None)
+            title = m.get("title", None)
+            release = m.get("release", None)
+            youtube = m.get("youtube", None)
+            characters = m.get("characters", None)
+            decoded = fp.decode_code_string(code)
         
-    
+            bigeval[trid] = m
+        
+            data = {"track_id": trid,
+                "fp": decoded,
+                "length": length,
+                "codever": "%.2f" % version
+            }
+            if artist: data["artist"] = artist
+            if release: data["release"] = release
+            if title: data["track"] = title
+            if youtube: data["youtube"] = youtube
+            if characters: data["characters"] = characters
+            fullcodes.append(data)
+
+        return (fullcodes, bigeval)
+
 class query:
     def POST(self):
         return self.GET()
-        
+
     def GET(self):
         stuff = web.input(fp_code="")
         response = fp.best_match_for_query(stuff.fp_code)
         return json.dumps({"ok":True, "query":stuff.fp_code, "message":response.message(), "match":response.match(), "score":response.score, \
                         "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time})
 
-
 application = web.application(urls, globals())#.wsgifunc()
-        
+
 if __name__ == "__main__":
     application.run()
 
+#if __name__ == "__main__":
+#    if len(sys.argv) < 2:
+#        print >>sys.stderr, "Usage: %s [-b] [json dump] ..." % sys.argv[0]
+#        print >>sys.stderr, "       -b: write a file to disk for bigeval"
+#        sys.exit(1)
+    
+#    write_bigeval = False
+#    pos = 1
+#    if sys.argv[1] == "-b":
+#        write_bigeval = True
+#        pos = 2
+#    
+#    for (i, f) in enumerate(sys.argv[pos:]):
+#        print "%d/%d %s" % (i+1, len(sys.argv)-pos, f)
+#        codes, bigeval = parse_json_dump(f)
+#        fp.ingest(codes, do_commit=False)
+#        if write_bigeval:
+#            bename = "bigeval.json"
+#            if not os.path.exists(bename):
+#                be = {}
+#            else:
+#                be = json.load(open(bename))
+#            be.update(bigeval)
+#            json.dump(be, open(bename, "w"))
+#    fp.commit()
