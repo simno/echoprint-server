@@ -27,7 +27,7 @@ class ingest:
         tracks = json.loads(data)
         codes, bigeval = self.parse_json_dump(tracks)
         #print("Codes est: '%s'" % codes)
-        fp.ingest(codes, do_commit=False)
+        fp.ingest(codes, do_commit=True)
         return json.dumps({"track_id":track_id, "status":"ok"})
 
     def parse_json_dump(self, json_data):
