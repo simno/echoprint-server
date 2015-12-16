@@ -25,16 +25,17 @@ class ingest:
         data = web.data()
         #print(data)
         tracks = json.loads(data)
-        codes, bigeval = self.parse_json_dump(tracks)
+        codes, bigeval, track_ids = self.parse_json_dump(tracks)
         #print("Codes est: '%s'" % codes)
         fp.ingest(codes, do_commit=True)
-        return json.dumps({"track_id":track_id, "status":"ok"})
+        return json.dumps({"track_ids":track_ids, "status":"ok"})
 
     def parse_json_dump(self, json_data):
         codes = json_data
 
         bigeval = {}
         fullcodes = []
+	track_ids = []
         for c in codes:
             if "code" not in c:
                 continue
@@ -44,6 +45,7 @@ class ingest:
                 trid = m["track_id"].encode("utf-8")
             else:
                 trid = fp.new_track_id()
+	    track_ids.append(trid)
             length = m["duration"]
             version = m["version"]
             artist = m.get("artist", None)
@@ -67,7 +69,7 @@ class ingest:
             if characters: data["characters"] = characters
             fullcodes.append(data)
 
-        return (fullcodes, bigeval)
+        return (fullcodes, bigeval, track_ids)
 
 class query:
     def POST(self):
