@@ -80,8 +80,9 @@ class query:
         json_data = json.loads(data)
         response = fp.best_match_for_query(json_data['code'])
         print(response)
+        print(response.metadata)
         return json.dumps({"ok":True, "query":json_data['code'], "message":response.message(), "match":response.match(), "score":response.score, \
-                        "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time, "metadata": response.metadata})
+                        "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time})
 
 application = web.application(urls, globals())#.wsgifunc()
 
