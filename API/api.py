@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import web
-import logger
+import logging
 
 try:
     import json
@@ -18,6 +18,7 @@ urls = (
     '/ingest', 'ingest',
 )
 
+logger = logging.getLogger(__name__)
 
 class ingest:
 
