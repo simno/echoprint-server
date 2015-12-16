@@ -28,7 +28,7 @@ class ingest:
         tracks = json.loads(data)
         codes, bigeval, track_ids = self.parse_json_dump(tracks)
         #print("Codes est: '%s'" % codes)
-        fp.ingest(codes, do_commit=True)
+        fp.ingest(codes, do_commit=True, local=False)
         return json.dumps({"track_ids":track_ids, "status":"ok"})
 
     def parse_json_dump(self, json_data):
@@ -79,38 +79,13 @@ class query:
     def GET(self):
         data = web.data()
         json_data = json.loads(data)
-        response = fp.best_match_for_query(json_data['code'])
-        logger.info("Metadata is '%s' " % response.metadata)
+        response = fp.best_match_for_query(json_data['code'], elbow=10, local=False)
+	logger.info("Metadata is '%s' " % response.metadata)
         return json.dumps({"ok":True, "query":json_data['code'], "message":response.message(), "match":response.match(), "score":response.score, \
-                        "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time})
+                        "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time, "youtube": response.metadata['youtube'], \
+                        "characters":response.metadata['characters']})
 
 application = web.application(urls, globals())#.wsgifunc()
 
 if __name__ == "__main__":
     application.run()
-
-#if __name__ == "__main__":
-#    if len(sys.argv) < 2:
-#        print >>sys.stderr, "Usage: %s [-b] [json dump] ..." % sys.argv[0]
-#        print >>sys.stderr, "       -b: write a file to disk for bigeval"
-#        sys.exit(1)
-    
-#    write_bigeval = False
-#    pos = 1
-#    if sys.argv[1] == "-b":
-#        write_bigeval = True
-#        pos = 2
-#    
-#    for (i, f) in enumerate(sys.argv[pos:]):
-#        print "%d/%d %s" % (i+1, len(sys.argv)-pos, f)
-#        codes, bigeval = parse_json_dump(f)
-#        fp.ingest(codes, do_commit=False)
-#        if write_bigeval:
-#            bename = "bigeval.json"
-#            if not os.path.exists(bename):
-#                be = {}
-#            else:
-#                be = json.load(open(bename))
-#            be.update(bigeval)
-#            json.dump(be, open(bename, "w"))
-#    fp.commit()
