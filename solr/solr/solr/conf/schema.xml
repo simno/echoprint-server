@@ -32,7 +32,8 @@
     <field name="codever" type="string" indexed="true" stored="true" required="true"/>
     <field name="source" type="string" indexed="true" stored="true" required="true"/>
     <field name="import_date" type="date" indexed="true" stored="true" required="true"/>
-
+    <field name="youtube" type="string" indexed="true" stored="true" required="false"/>
+    <field name="characters" type="string" indexed="true" stored="true" required="false"/>
   </fields>
 
   <!-- Field to use to determine and enforce document uniqueness. 

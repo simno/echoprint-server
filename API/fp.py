@@ -339,7 +339,7 @@ class FakeSolrResponse(object):
                 data = {"score":r[1], "track_id":r[0], "fp":r[2]}
                 metadata = r[3]
                 data["length"] = metadata["length"]
-                for m in ["artist", "release", "track"]:
+                for m in ["artist", "release", "track", "youtube", "characters"]:
                     if m in metadata:
                         data[m] = metadata[m]
                 self.results.append(data)
@@ -378,6 +378,10 @@ def local_ingest(docs, codes):
             _fake_solr["metadata"][trackid]["release"] = fprint["release"]
         if "track" in fprint:
             _fake_solr["metadata"][trackid]["track"] = fprint["track"]
+        if "youtube" in fprint:
+            _fake_solr["metadata"][trackid]["youtube"] = fprint["youtube"]
+        if "characters" in fprint:
+            _fake_solr["metadata"][trackid]["characters"] = fprint["characters"]
 
 def local_delete(tracks):
     for track in tracks:
@@ -601,7 +605,7 @@ def query_fp(code_string, rows=15, local=False, get_data=False):
     try:
         # query the fp flat
         if get_data:
-            fields = "track_id,artist,release,track,length"
+            fields = "track_id,artist,release,track,length,youtube,characters"
         else:
             fields = "track_id"
         with solr.pooled_connection(_fp_solr) as host:
