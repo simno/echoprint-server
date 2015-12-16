@@ -114,10 +114,12 @@ def metadata_for_track_id(track_id, local=False):
         
     with solr.pooled_connection(_fp_solr) as host:
         response = host.query("track_id:%s" % track_id)
+        logger.info("Response from solr: '%s' " % solr)
 
     if len(response.results):
         return response.results[0]
     else:
+        logger.info("No meta-data")
         return {}
 
 def cut_code_string_length(code_string):

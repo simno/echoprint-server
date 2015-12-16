@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
 import web
-import sys
-import os
+import logger
+
 try:
     import json
 except ImportError:
@@ -79,8 +79,7 @@ class query:
         data = web.data()
         json_data = json.loads(data)
         response = fp.best_match_for_query(json_data['code'])
-        print(response)
-        print(response.metadata)
+        logger.info("Metadata is '%s' " % response.metadata)
         return json.dumps({"ok":True, "query":json_data['code'], "message":response.message(), "match":response.match(), "score":response.score, \
                         "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time})
 
