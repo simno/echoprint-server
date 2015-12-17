@@ -15,6 +15,8 @@ import zlib, base64, re, time, random, string, math
 import pytyrant
 import datetime
 
+logging.basicConfig()
+
 now = datetime.datetime.utcnow()
 IMPORTDATE = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -151,10 +153,12 @@ def best_match_for_query(code_string, elbow=10, local=False):
     if re.match('[A-Za-z\/\+\_\-]', code_string) is not None:
         code_string = decode_code_string(code_string)
         if code_string is None:
+            print("cannot decode")
             return Response(Response.CANNOT_DECODE, tic=tic)
-    
+
     code_len = len(code_string.split(" ")) / 2
     if code_len < elbow:
+        print("less than elbow")
         logger.warn("Query code length (%d) is less than elbow (%d)" % (code_len, elbow))
         return Response(Response.NOT_ENOUGH_CODE, tic=tic)
 
@@ -164,23 +168,39 @@ def best_match_for_query(code_string, elbow=10, local=False):
     # Query the FP flat directly.
     response = query_fp(code_string, rows=30, local=local, get_data=True)
     logger.debug("solr qtime is %d" % (response.header["QTime"]))
-    
+    print("Solr results:")
+    print(response.results)
+
     if len(response.results) == 0:
+        print("0 results")
         return Response(Response.NO_RESULTS, qtime=response.header["QTime"], tic=tic)
 
     # If we just had one result, make sure that it is close enough. We rarely if ever have a single match so this is not helpful (and probably doesn't work well.)
     top_match_score = int(response.results[0]["score"])
+
+    # Hack Fix: Return the top result solr returned:
+    print("Top score is %s, returning that!" % top_match_score)
+    trackid = response.results[0]["track_id"]
+    trackid = trackid.split("-")[0] # will work even if no `-` in trid
+    meta = metadata_for_track_id(trackid, local=local)
+    return Response(Response.SINGLE_GOOD_MATCH, TRID=trackid, score=top_match_score, qtime=response.header["QTime"], tic=tic, metadata=meta)
+
+
     if len(response.results) == 1:
+        print("1 result")
         trackid = response.results[0]["track_id"]
         trackid = trackid.split("-")[0] # will work even if no `-` in trid
         meta = metadata_for_track_id(trackid, local=local)
         if code_len - top_match_score < elbow:
+            print("Single good match")
             return Response(Response.SINGLE_GOOD_MATCH, TRID=trackid, score=top_match_score, qtime=response.header["QTime"], tic=tic, metadata=meta)
         else:
+            print("Single bad match")
             return Response(Response.SINGLE_BAD_MATCH, qtime=response.header["QTime"], tic=tic)
 
     # If the scores are really low (less than 5% of the query length) then say no results
     if top_match_score < code_len * 0.05:
+        print("Multiple bad match")
         return Response(Response.MULTIPLE_BAD_HISTOGRAM_MATCH, qtime = response.header["QTime"], tic=tic)
 
     # Not a strong match, so we look up the codes in the keystore and compute actual matches...
@@ -194,22 +214,27 @@ def best_match_for_query(code_string, elbow=10, local=False):
         tcodes = [_fake_solr["store"][t] for t in trackids]
     else:
         tcodes = get_tyrant().multi_get(trackids)
-    
+
     # For each result compute the "actual score" (based on the histogram matching)
     for (i, r) in enumerate(response.results):
         track_id = r["track_id"]
         original_scores[track_id] = int(r["score"])
         track_code = tcodes[i]
         if track_code is None:
+            print("Solr gave us back a track id but that track")
             # Solr gave us back a track id but that track
             # is not in our keystore
             continue
         actual_scores[track_id] = actual_matches(code_string, track_code, elbow = elbow)
-    
+
+    print("Part 8")
     #logger.debug("Actual score for %s is %d (code_len %d), original was %d" % (r["track_id"], actual_scores[r["track_id"]], code_len, top_match_score))
     # Sort the actual scores
     sorted_actual_scores = sorted(actual_scores.iteritems(), key=lambda (k,v): (v,k), reverse=True)
-    
+
+    print("sorted_actual_scores Before:")
+    print(sorted_actual_scores)
+    print("Part 9")
     # Because we split songs up into multiple parts, sometimes the results will have the same track in the
     # first few results. Remove these duplicates so that the falloff is (potentially) higher.
     new_sorted_actual_scores = []
@@ -221,25 +246,26 @@ def best_match_for_query(code_string, elbow=10, local=False):
             existing_trids.append(trid_split)
     sorted_actual_scores = new_sorted_actual_scores
 
+    print("sorted_actual_scores After:")
+    print(sorted_actual_scores)
     # We might have reduced the length of the list to 1
     if len(sorted_actual_scores) == 1:
-        logger.info("only have 1 score result...")
         (top_track_id, top_score) = sorted_actual_scores[0]
         if top_score < code_len * 0.1:
-            logger.info("only result less than 10%% of the query string (%d < %d *0.1 (%d)) SINGLE_BAD_MATCH", top_score, code_len, code_len*0.1)
+            print("only result less than 10%% of the query string (%d < %d *0.1 (%d)) SINGLE_BAD_MATCH", top_score, code_len, code_len*0.1)
             return Response(Response.SINGLE_BAD_MATCH, qtime = response.header["QTime"], tic=tic)
         else:
             if top_score > (original_scores[top_track_id] / 2): 
-                logger.info("top_score > original_scores[%s]/2 (%d > %d) GOOD_MATCH_DECREASED",
+                print("top_score > original_scores[%s]/2 (%d > %d) GOOD_MATCH_DECREASED",
                     top_track_id, top_score, original_scores[top_track_id]/2)
                 trid = top_track_id.split("-")[0]
                 meta = metadata_for_track_id(trid, local=local)
                 return Response(Response.MULTIPLE_GOOD_MATCH_HISTOGRAM_DECREASED, TRID=trid, score=top_score, qtime=response.header["QTime"], tic=tic, metadata=meta)
             else:
-                logger.info("top_score NOT > original_scores[%s]/2 (%d <= %d) BAD_HISTOGRAM_MATCH",
+                print("top_score NOT > original_scores[%s]/2 (%d <= %d) BAD_HISTOGRAM_MATCH",
                     top_track_id, top_score, original_scores[top_track_id]/2)
                 return Response(Response.MULTIPLE_BAD_HISTOGRAM_MATCH, qtime=response.header["QTime"], tic=tic)
-        
+
     # Get the top one
     (actual_score_top_track_id, actual_score_top_score) = sorted_actual_scores[0]
     # Get the 2nd top one (we know there is always at least 2 matches)
