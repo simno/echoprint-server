@@ -3,6 +3,8 @@
 import web
 import logging
 
+logging.basicConfig()
+
 try:
     import json
 except ImportError:
@@ -87,11 +89,12 @@ class query:
     def GET(self):
         data = web.data()
         json_data = json.loads(data)
+        print("Query is: '%s'" % json_data)
         response = fp.best_match_for_query(json_data['code'], elbow=10, local=False)
         if 'youtube' in response.metadata:
             return json.dumps({"ok":True, "query":json_data['code'], "message":response.message(), "match":response.match(), "score":response.score, \
                         "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time, "youtube": response.metadata['youtube'], \
-                        "characters":response.metadata['characters'], "track":response.metadata['track'], "artist":response.metadata['artist']})
+                        "characters": [eval(val) for val in response.metadata['characters']], "track":response.metadata['track'], "artist":response.metadata['artist']})
         else:
             return json.dumps({"ok":True, "query":json_data['code'], "message":response.message(), "match":response.match(), "score":response.score, \
                         "qtime":response.qtime, "track_id":response.TRID, "total_time":response.total_time, "youtube": "", \
